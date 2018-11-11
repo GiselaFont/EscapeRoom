@@ -1,6 +1,7 @@
 breed [olds old]
 breed [averages average]
 breed [youngs young]
+breed [dangers danger]
 turtles-own [energy]
 
 ;;Button setup
@@ -15,6 +16,7 @@ end
 to go
   if ticks >= 100 [ stop ]
   move-turtles
+  increase-danger
   check-death
   tick
 end
@@ -52,29 +54,42 @@ end
 
 ;;------------------------
 
-to check-death
-  ask turtles [
-    if energy <= 0 [ die ]
-  ]
-end
-
 
 to move-turtles
-  ask turtles [
-    right random 360
+  ask (turtle-set youngs olds averages) [
+    ;;right random 360
     forward 1
-    set energy energy - 1
+    ;;set energy energy - 1
   ]
 end
 
+;; ******************** DANGER *******************
+
+;;set up dangers: number and position
 to setup-danger
-  create-turtles 1
+  create-dangers number-of-dangers
     [ set color black
-      set size 2 * 2
+      set size 1
       set shape "circle"
-      setxy 10 11
-      stamp
-      die ]
+      setxy random-xcor random-ycor
+      ;stamp
+      ;die ]
+  ]
+end
+
+;;increase the danger radius
+to increase-danger
+  ask dangers [ set size size + 0.5 ]
+end
+
+;;check if agent is in danger
+to check-death
+  ask (turtle-set youngs olds averages) [
+    let people-in-danger-radius turtles with [(color = black)]
+    show [xcor] of people-in-danger-radius
+    show [size] of people-in-danger-radius
+    ;;if energy <= 0 [ die ]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
