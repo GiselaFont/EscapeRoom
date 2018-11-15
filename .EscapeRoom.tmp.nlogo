@@ -242,9 +242,8 @@ to go2
       let new-dir (item 0 dir-stats)
       face-direction new-dir
     ]
-    forward 1.0
+
   ]
-  tick
 end
 
 
@@ -425,23 +424,6 @@ TEXTBOX
 The colors of the agents correspond to the following properties:
 11
 0.0
-1
-
-BUTTON
-1003
-72
-1066
-105
-NIL
-go2
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
 1
 
 @#$#@#$#@
