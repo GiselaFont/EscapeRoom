@@ -1,116 +1,225 @@
-breed [olds old]
-breed [averages average]
-breed [youngs young]
-turtles-own [energy]
+breed [dangers danger]
+breed [people person]
+
+dangers-own [
+  radius
+]
+
+people-own [
+  age
+  ;; position xcor, ycor
+  ;; heading
+  speed
+  vision-radius
+  ;; distance-to-danger
+  energy-level
+  ;; belief-of-movement
+]
+
 extensions [table]
 
 globals [
   num-angles
-  vision-radius
+  pop-size
+  danger-growth-coeff
 ]
+
+to normalize-pop
+  let total (frac-young + frac-average + frac-old)
+  set frac-young round (100 * frac-young / total)
+  set frac-average round (100 * frac-average / total)
+  set frac-old 100 - (frac-young + frac-average)
+end
 
 ;;Button setup
 to setup
   clear-all
 
   set num-angles 8
-  set vision-radius 10
+  set pop-size 100
+  set danger-growth-coeff 0.01
+
+  ;;set vision-radius 10
 
   setup-patches
-  setup-turtles
-  setup-danger
+  setup-people
+  setup-many-dangers number-of-dangers
   reset-ticks
-end
-
-to go
-  if ticks >= 100 [ stop ]
-  move-turtles
-  check-death
-  tick
 end
 
 ;;Environment setup
 to setup-patches
   ask patches [ set pcolor white ]
-  ask patch -15 16 [ set pcolor red ]
-  ask patch -14 16 [ set pcolor red ]
-  ask patch 15 -16 [ set pcolor red ]
-  ask patch 14 -16 [ set pcolor red ]
 end
 
-to setup-turtles
-  set-default-shape turtles "person"
-  if age-ratio = "ageoldpeople"
-  [
-    show age-ratio
-    ask turtles [ set color white ]
+to setup-people
+  set-default-shape people "person"
+
+  normalize-pop
+
+  create-people number-of-people * frac-young / 100 [
+    set age 0
+    set speed 0
+    set vision-radius 4
+    set energy-level 10
+    set color green
   ]
-  if age-ratio = "75-0-25"
-  [
-    ;create-youngs number-of-people*0.75
-    show "75"
+
+  create-people number-of-people * frac-average / 100 [
+    set age 1
+    set speed 0
+    set vision-radius 4
+    set energy-level 10
+    set color orange
   ]
-  show number-of-people * read-from-string word "0." substring age-ratio 0 2
-  create-olds number-of-people * read-from-string word "0." substring age-ratio 0 2
-  create-youngs number-of-people
-  create-averages number-of-people
-  ask olds [ set color green ]
-  ask youngs [ set color orange ]
-  ask averages [ set color blue ]
-  ask turtles [ setxy random-xcor random-ycor ]
+
+  create-people number-of-people * frac-old / 100 [
+    set age 2
+    set speed 0
+    set vision-radius 4
+    set energy-level 10
+    set color blue
+  ]
+
+  ask people [
+    setxy random-xcor random-ycor
+    set heading (random 360)
+  ]
+end
+
+
+to setup-many-dangers [ n ]
+  create-dangers n [
+    set xcor random-xcor
+    set ycor random-ycor
+    set radius 1
+    set color black
+    set size (2 * radius)
+    set shape "circle"
+  ]
 end
 
 ;;------------------------
 
+
+to go
+  show (word "in go 1")
+  if ticks >= 1000 [ stop ]
+  move-people
+  check-death
+  grow-dangers
+  tick
+end
+
+
+to move-people
+  ask people [
+
+    let visible-dangers (dangers in-radius vision-radius)
+    ifelse (count visible-dangers >= 1) [
+      ;; I can see one or more danger
+      let chosen-danger (one-of visible-dangers)
+      let x2 [xcor] of chosen-danger
+      let y2 [ycor] of chosen-danger
+      let dir-to-danger (get-directions xcor ycor x2 y2)
+      let opp-dir ((dir-to-danger + (num-angles / 2)) mod num-angles)
+      face-direction opp-dir
+      set speed 1.0 ;; to do... calc speed
+    ]
+    [
+      ;; I see no danger, try and imitate the people I see
+
+      let dir-stats (get-movement-stats xcor ycor vision-radius)
+      ifelse (length dir-stats > 0) [
+        ;; I see someone moving nearby
+        let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
+        face-direction new-dir
+        set speed 1.0 ;; to do... calc speed
+      ]
+      [
+        ;; I see no one moving continue unchanged heading and speed
+      ]
+    ]
+
+    forward (speed)
+
+    let energy-used 0 ;; to do
+
+    set energy-level (energy-level - energy-used)
+  ]
+end
+
+
+to grow-dangers
+  ask dangers [
+    let calc-radius (exp (danger-growth-coeff * ticks))
+    set radius calc-radius
+    show (word "radius = " calc-radius)
+    set size (2 * calc-radius)
+  ]
+end
+
+
 to check-death
-  ask turtles [
-    if energy <= 0 [ die ]
+
+  ;; death by danger
+  ask dangers [
+    let will-die (people in-radius radius)
+    ask will-die [
+      die
+    ]
+  ]
+
+  ;; death by energy-level
+  ask people [
+    if energy-level <= 0 [
+      die
+    ]
   ]
 end
 
 
-to move-turtles
-  ask turtles [
-    right random 360
-    forward 1
-    set energy energy - 1
+
+;Returns the degree that the agent should face
+to face-direction [direction]
+  ;;let actionToDirectionAngle set-get-directions-table
+  ;;report table:get actionToDirectionAngle direction
+
+  set heading (direction * 360 / num-angles)
+end
+
+
+to-report in-ball [x y r]
+  let d2 ((xcor - x) * (xcor - x) + (ycor - y) * (ycor - y))
+  let ans (d2 < (r * r))
+  report ans
+end
+
+to-report get-movement-stats [x y r]
+
+  ;; get turtles in ball of radius r of x,y
+  let ball (turtles with [in-ball x y r])
+
+  let list-of-directions []
+  ask ball [
+    let my-disc-heading (get-discrete-heading heading)                ;; compute my discrete heading
+    set list-of-directions (lput my-disc-heading list-of-directions)  ;; append my discrete heading to list
   ]
+
+  let ans []
+  if (length list-of-directions > 0) [
+    let winner (item 0 list-of-directions) ;; this is a todo... placeholder for the complicated logic of finding the most popular direction
+    set ans (lput winner ans)
+  ]
+
+  ;; either empty list, or a list with one winner (currently just randomly chosen)
+  report ans
 end
 
-to setup-danger
-  create-turtles 1
-    [ set color black
-      set size 2 * 2
-      set shape "circle"
-      setxy 10 11
-      stamp
-      die ]
-end
-
-;************** DIRECTION ***************
-to-report set-get-directions-table
-  let actionToDirectionAngle table:make
-  table:put actionToDirectionAngle 0 0
-  table:put actionToDirectionAngle 1 45
-  table:put actionToDirectionAngle 2 90
-  table:put actionToDirectionAngle 3 135
-  table:put actionToDirectionAngle 4 180
-  table:put actionToDirectionAngle 5 225
-  table:put actionToDirectionAngle 6 270
-  table:put actionToDirectionAngle 7 315
-  report actionToDirectionAngle
-end
-
-;Returns #0-7: 8 possible directions
-to-report get-discrete-heading2 [direction]
-  let actionToDirectionAngle set-get-directions-table
-
-  report direction mod 8
-end
 
 
 ;Returns the direction of movement given two coordinates
-to-report get-directions2 [x1 y1 x2 y2]
+to-report get-directions [x1 y1 x2 y2]
   report atan (x2 - x1) (y2 - y1)
 end
 
@@ -144,8 +253,36 @@ to-report get-discrete-heading [angle]
 end
 
 
+
+
+
+
+
+;************** DIRECTION ***************
+to-report set-get-directions-table
+  let actionToDirectionAngle table:make
+  table:put actionToDirectionAngle 0 0
+  table:put actionToDirectionAngle 1 45
+  table:put actionToDirectionAngle 2 90
+  table:put actionToDirectionAngle 3 135
+  table:put actionToDirectionAngle 4 180
+  table:put actionToDirectionAngle 5 225
+  table:put actionToDirectionAngle 6 270
+  table:put actionToDirectionAngle 7 315
+  report actionToDirectionAngle
+end
+
+;Returns #0-7: 8 possible directions
+to-report get-discrete-heading2 [direction]
+  let actionToDirectionAngle set-get-directions-table
+
+  report direction mod 8
+end
+
+
+
 ;Returns the direction of movement given two coordinates
-to-report get-directions [x1 y1 x2 y2]
+to-report get-directions2 [x1 y1 x2 y2]
   if (x2 > x1) and (y2 > y1)
   [
     let y y2 - y1
@@ -197,43 +334,6 @@ to-report get-directions [x1 y1 x2 y2]
 
 end
 
-;Returns the degree that the agent should face
-to face-direction [direction]
-  ;;let actionToDirectionAngle set-get-directions-table
-  ;;report table:get actionToDirectionAngle direction
-
-  set heading (direction * 360 / num-angles)
-end
-
-
-to-report in-ball [x y r]
-  let d2 ((xcor - x) * (xcor - x) + (ycor - y) * (ycor - y))
-  let ans (d2 < (r * r))
-  report ans
-end
-
-to-report get-movement-stats [x y r]
-
-  ;; get turtles in ball of radius r of x,y
-  let ball (turtles with [in-ball x y r])
-
-  let list-of-directions []
-  ask ball [
-    let my-disc-heading (get-discrete-heading heading)                ;; compute my discrete heading
-    set list-of-directions (lput my-disc-heading list-of-directions)  ;; append my discrete heading to list
-  ]
-
-  let ans []
-  if (length list-of-directions > 0) [
-    let winner (item 0 list-of-directions) ;; this is a placeholder for the complicated logic of finding the most popular direction
-    set ans (lput winner ans)
-  ]
-
-  ;; either empty list, or a list with one winner (currently just randomly chosen)
-  report ans
-end
-
-
 to go2
   ask turtles [
     let dir-stats (get-movement-stats xcor ycor vision-radius)
@@ -246,7 +346,6 @@ to go2
   ]
   tick
 end
-
 
 
 @#$#@#$#@
@@ -264,8 +363,8 @@ GRAPHICS-WINDOW
 1
 1
 0
-0
-0
+1
+1
 1
 -16
 16
@@ -435,6 +534,68 @@ BUTTON
 NIL
 go2
 T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+928
+158
+1100
+191
+frac-old
+frac-old
+0
+100
+30.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+930
+215
+1102
+248
+frac-average
+frac-average
+0
+100
+54.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+934
+274
+1106
+307
+frac-young
+frac-young
+0
+100
+16.0
+1
+1
+NIL
+HORIZONTAL
+
+BUTTON
+938
+334
+1062
+367
+NIL
+normalize-pop
+NIL
 1
 T
 OBSERVER
