@@ -115,14 +115,24 @@ end
 to move-people
   ask people [
 
-    let visible-dangers (dangers in-radius vision-radius)
+    ;; get dangers within radius r of x,y
+    let x xcor
+    let y ycor
+    let vision-r vision-radius
+    let visible-dangers (dangers with [in-danger-radius x y vision-r])
+    ;let visible-dangers (dangers in-radius vision-radius)
+
     ifelse (count visible-dangers >= 1) [
+      show "I see danger!!"
+      show who
       ;; I can see one or more danger
       let chosen-danger (one-of visible-dangers)
       let x2 [xcor] of chosen-danger
       let y2 [ycor] of chosen-danger
       let dir-to-danger (get-directions xcor ycor x2 y2)
+      show (word "direction to danger=" dir-to-danger)
       let opp-dir ((dir-to-danger + (num-angles / 2)) mod num-angles)
+      show (word "opposite direction=" opp-dir "heading=" heading)
       face-direction opp-dir
       set speed 1.0 ;; to do... calc speed
     ]
@@ -154,7 +164,7 @@ to grow-dangers
   ask dangers [
     let calc-radius (exp (danger-growth-coeff * ticks))
     set radius calc-radius
-    show (word "radius = " calc-radius)
+    ;show (word "radius = " calc-radius)
     set size (2 * calc-radius)
   ]
 end
@@ -188,6 +198,11 @@ to face-direction [direction]
   set heading (direction * 360 / num-angles)
 end
 
+to-report in-danger-radius [x y vision-r]
+  let d2 sqrt((x - xcor) * (x - xcor) + (y - ycor) * (y - ycor));calculate distance to the danger
+  let ans (d2 <= (vision-r + radius)) ;returns true if the person sees the danger within their vision-radius
+  report ans
+end
 
 to-report in-ball [x y r]
   let d2 ((xcor - x) * (xcor - x) + (ycor - y) * (ycor - y))
@@ -451,7 +466,7 @@ CHOOSER
 age-ratio
 age-ratio
 "ageoldpeople" "75-0-25" "75250"
-1
+0
 
 SLIDER
 24
