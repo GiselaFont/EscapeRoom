@@ -222,8 +222,26 @@ to-report get-movement-stats [x y r]
   ]
 
   let ans []
+  let list-of-directions-to-number-of-occurrences table:make
   if (length list-of-directions > 0) [
-    let winner (item 0 list-of-directions) ;; this is a todo... placeholder for the complicated logic of finding the most popular direction
+    foreach list-of-directions [
+      [dir] -> show (word "direction=" dir)
+      ifelse ((table:has-key? list-of-directions-to-number-of-occurrences dir) = false)[
+        table:put list-of-directions-to-number-of-occurrences dir 0
+      ]
+      [
+        let dir-count table:get list-of-directions-to-number-of-occurrences dir + 1
+        table:put list-of-directions-to-number-of-occurrences dir dir-count
+        show (word "Directions count=" dir-count)
+      ]
+    ]
+    let max-values-in-table get-max-values-in-table list-of-directions-to-number-of-occurrences
+    show max-values-in-table
+    show list-of-directions-to-number-of-occurrences
+    let max-values-list-length length max-values-in-table
+    show (word "length !!!!! = " max-values-list-length)
+    let winner (item (random max-values-list-length) list-of-directions)
+
     set ans (lput winner ans)
   ]
 
@@ -231,13 +249,38 @@ to-report get-movement-stats [x y r]
   report ans
 end
 
+;;!!!!!!For testing ONLY!!!!!!!
+to-report get-table
+  let new-table table:make
+  table:put new-table 0 1
+  table:put new-table 1 1
+  report new-table
+end
+;---------------------------
 
+;returns a list with the keys with the highest values from the table
+to-report get-max-values-in-table [mtable]
+  let list-of-values table:values mtable
+  let max-number-value-in-list max list-of-values
+  let list-of-keys-with-max-values []
+  show (word "max =" max-number-value-in-list)
+  foreach table:keys mtable [
+    [key] ->
+    let value table:get mtable key
+    if(value = max-number-value-in-list)[
+      show (word "adding value=" value " with key=" key " to list")
+      show (word "list of values before = " list-of-keys-with-max-values)
+      set list-of-keys-with-max-values (lput key list-of-keys-with-max-values)
+      show (word "list of values = " list-of-keys-with-max-values)
+    ]
+  ]
+  report list-of-keys-with-max-values
+end
 
 ;Returns the direction of movement given two coordinates
 to-report get-directions [x1 y1 x2 y2]
   report atan (x2 - x1) (y2 - y1)
 end
-
 
 to-report get-discrete-heading [angle]
   let i 0
@@ -361,7 +404,6 @@ to go2
   ]
   tick
 end
-
 
 @#$#@#$#@
 GRAPHICS-WINDOW
