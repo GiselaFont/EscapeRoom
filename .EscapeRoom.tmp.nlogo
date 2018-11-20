@@ -81,6 +81,7 @@ to setup-people
     set color blue
   ]
 
+
   ask people [
     setxy random-xcor random-ycor
     set heading (random 360)
@@ -121,7 +122,7 @@ to move-people
     let vision-r vision-radius
     let visible-dangers (dangers with [in-danger-radius x y vision-r])
     ;let visible-dangers (dangers in-radius vision-radius)
-
+    ;to do add exit
     ifelse (count visible-dangers >= 1) [
       show "I see danger!!"
       show who
@@ -276,6 +277,7 @@ to-report get-max-values-in-table [mtable]
 end
 
 ;Returns the direction of movement given two coordinates
+;To do check if coordinate1 and coordinate2 are equal
 to-report get-directions [x1 y1 x2 y2]
   report atan (x2 - x1) (y2 - y1)
 end
@@ -313,95 +315,6 @@ end
 
 
 
-
-;************** DIRECTION ***************
-to-report set-get-directions-table
-  let actionToDirectionAngle table:make
-  table:put actionToDirectionAngle 0 0
-  table:put actionToDirectionAngle 1 45
-  table:put actionToDirectionAngle 2 90
-  table:put actionToDirectionAngle 3 135
-  table:put actionToDirectionAngle 4 180
-  table:put actionToDirectionAngle 5 225
-  table:put actionToDirectionAngle 6 270
-  table:put actionToDirectionAngle 7 315
-  report actionToDirectionAngle
-end
-
-;Returns #0-7: 8 possible directions
-to-report get-discrete-heading2 [direction]
-  let actionToDirectionAngle set-get-directions-table
-
-  report direction mod 8
-end
-
-
-
-;Returns the direction of movement given two coordinates
-to-report get-directions2 [x1 y1 x2 y2]
-  if (x2 > x1) and (y2 > y1)
-  [
-    let y y2 - y1
-    let x x2 - x1
-    show "x2 and y2 greater"
-    let dir get-discrete-heading atan x y
-    report dir
-  ]
-  if (x1 > x2) and (y2 > y1)
-  [
-    let y y2 - y1
-    let x x1 - x2
-    show "x1 and y2 greater"
-    let dir get-discrete-heading atan x y
-    report dir
-  ]
-  if (x2 > x1) and (y1 > y2)
-  [
-    let y y1 - y2
-    let x x2 - x1
-    show "x2 and y1 greater"
-    let dir get-discrete-heading atan x y
-    report dir
-  ]
-  if (x1 > x2) and (y1 > y2)
-  [
-    let y y1 - y2
-    let x x1 - x2
-    show "x1 and y1 greater"
-    let dir get-discrete-heading atan x y
-    report dir
-  ]
-  if (x1 = x2) and (y2 > y1)
-  [
-    report 90
-  ]
-  if (x1 = x2) and (y1 > y2)
-  [
-    report 270
-  ]
-  if (x2 > x1) and (y1 = y2)
-  [
-    report 0
-  ]
-  if (x1 > x2) and (y1 = y2)
-  [
-    report 180
-  ]
-
-end
-
-to go2
-  ask turtles [
-    let dir-stats (get-movement-stats xcor ycor vision-radius)
-
-    if (length dir-stats > 0) [
-      let new-dir (item 0 dir-stats)
-      face-direction new-dir
-    ]
-    forward 1.0
-  ]
-  tick
-end
 
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -581,23 +494,6 @@ The colors of the agents correspond to the following properties:
 0.0
 1
 
-BUTTON
-1003
-72
-1066
-105
-NIL
-go2
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 SLIDER
 928
 158
@@ -607,7 +503,7 @@ frac-old
 frac-old
 0
 100
-30.0
+50.0
 1
 1
 NIL
@@ -622,7 +518,7 @@ frac-average
 frac-average
 0
 100
-54.0
+50.0
 1
 1
 NIL
@@ -637,7 +533,7 @@ frac-young
 frac-young
 0
 100
-16.0
+0.0
 1
 1
 NIL
