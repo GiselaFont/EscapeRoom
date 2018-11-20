@@ -142,7 +142,10 @@ to move-people
       let dir-stats (get-movement-stats xcor ycor vision-radius)
       ifelse (length dir-stats > 0) [
         ;; I see someone moving nearby
-        let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
+        let max-values-list-length length dir-stats ;get the length of the list to select a random item from the list
+        show (word "length !!!!! = " max-values-list-length)
+        let new-dir (item (random max-values-list-length) dir-stats)
+        ;let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
         face-direction new-dir
         set speed 1.0 ;; to do... calc speed
       ]
@@ -221,7 +224,7 @@ to-report get-movement-stats [x y r]
     set list-of-directions (lput my-disc-heading list-of-directions)  ;; append my discrete heading to list
   ]
 
-  let ans []
+  let list-of-keys-with-max-values-in-table []
   let list-of-directions-to-number-of-occurrences table:make
   if (length list-of-directions > 0) [
     foreach list-of-directions [
@@ -235,18 +238,13 @@ to-report get-movement-stats [x y r]
         show (word "Directions count=" dir-count)
       ]
     ]
-    let max-values-in-table get-max-values-in-table list-of-directions-to-number-of-occurrences
-    show max-values-in-table
-    show list-of-directions-to-number-of-occurrences
-    let max-values-list-length length max-values-in-table ;get the length of the list to select a random item from the list
-    show (word "length !!!!! = " max-values-list-length)
-    let winner (item (random max-values-list-length) list-of-directions)
-
-    set ans (lput winner ans)
+    set list-of-keys-with-max-values-in-table get-max-values-in-table list-of-directions-to-number-of-occurrences
+    show (word "************************" list-of-keys-with-max-values-in-table)
+    ;show list-of-directions-to-number-of-occurrences
   ]
 
   ;; either empty list, or a list with one winner (currently just randomly chosen)
-  report ans
+  report list-of-keys-with-max-values-in-table
 end
 
 ;;!!!!!!For testing ONLY!!!!!!!
