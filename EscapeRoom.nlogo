@@ -11,6 +11,7 @@ people-own [
   ;; heading
   speed
   vision-radius
+  collision-radius ;avoid colliding once inside this radius
   ;; distance-to-danger
   energy-level
   ;; belief-of-movement
@@ -44,6 +45,7 @@ to setup
   setup-patches
   setup-people
   setup-many-dangers number-of-dangers
+  setup-avoid-overlaps
   reset-ticks
 end
 
@@ -63,6 +65,7 @@ to setup-people
     set vision-radius 4
     set energy-level 10
     set color green
+    set collision-radius 0.5
   ]
 
   create-people number-of-people * frac-average / 100 [
@@ -71,6 +74,7 @@ to setup-people
     set vision-radius 4
     set energy-level 10
     set color orange
+    set collision-radius 0.5
   ]
 
   create-people number-of-people * frac-old / 100 [
@@ -79,6 +83,7 @@ to setup-people
     set vision-radius 4
     set energy-level 10
     set color blue
+    set collision-radius 0.5
   ]
 
   ask people [
@@ -99,11 +104,22 @@ to setup-many-dangers [ n ]
   ]
 end
 
+
+to setup-avoid-overlaps
+  ;;set positions so that the agents don't overlap
+
+  ask turtles [
+  while [any? other turtles in-radius 1]
+    [setxy random-xcor random-ycor ]
+  ]
+  ;; End set position to prevent overlaps
+
+end
 ;;------------------------
 
 
 to go
-  show (word "in go 1")
+  ;; ;; show (word "in go 1")
   if ticks >= 1000 [ stop ]
   move-people
   check-death
@@ -123,18 +139,18 @@ to move-people
     ;let visible-dangers (dangers in-radius vision-radius)
 
     ifelse (count visible-dangers >= 1) [
-      show "I see danger!!"
-      show who
+      ;; ;; show "I see danger!!"
+      ;; show who
       ;; I can see one or more danger
       let chosen-danger (one-of visible-dangers)
       let x2 [xcor] of chosen-danger
       let y2 [ycor] of chosen-danger
       let dir-to-danger (get-directions xcor ycor x2 y2)
-      show (word "direction to danger=" dir-to-danger)
+      ;; show (word "direction to danger=" dir-to-danger)
       let opp-dir ((dir-to-danger + (num-angles / 2)) mod num-angles)
-      show (word "opposite direction=" opp-dir "heading=" heading)
+      ;; show (word "opposite direction=" opp-dir "heading=" heading)
       face-direction opp-dir
-      set speed 1.0 ;; to do... calc speed
+      set speed calc_speed (who) ;; to do... calc speed
     ]
     [
       ;; I see no danger, try and imitate the people I see
@@ -143,11 +159,11 @@ to move-people
       ifelse (length dir-stats > 0) [
         ;; I see someone moving nearby
         let max-values-list-length length dir-stats ;get the length of the list to select a random item from the list
-        show (word "length !!!!! = " max-values-list-length)
+        ;; show (word "length !!!!! = " max-values-list-length)
         let new-dir (item (random max-values-list-length) dir-stats)
         ;let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
         face-direction new-dir
-        set speed 1.0 ;; to do... calc speed
+        set speed calc_speed (who);; to do... calc speed
       ]
       [
         ;; I see no one moving continue unchanged heading and speed
@@ -167,7 +183,7 @@ to grow-dangers
   ask dangers [
     let calc-radius (exp (danger-growth-coeff * ticks))
     set radius calc-radius
-    ;show (word "radius = " calc-radius)
+    ;;; show (word "radius = " calc-radius)
     set size (2 * calc-radius)
   ]
 end
@@ -228,19 +244,19 @@ to-report get-movement-stats [x y r]
   let list-of-directions-to-number-of-occurrences table:make
   if (length list-of-directions > 0) [
     foreach list-of-directions [
-      [dir] -> show (word "direction=" dir)
+      [dir] -> ;; show (word "direction=" dir)
       ifelse ((table:has-key? list-of-directions-to-number-of-occurrences dir) = false)[
         table:put list-of-directions-to-number-of-occurrences dir 0
       ]
       [
         let dir-count table:get list-of-directions-to-number-of-occurrences dir + 1
         table:put list-of-directions-to-number-of-occurrences dir dir-count
-        show (word "Directions count=" dir-count)
+        ;; show (word "Directions count=" dir-count)
       ]
     ]
     set list-of-keys-with-max-values-in-table get-max-values-in-table list-of-directions-to-number-of-occurrences
-    show (word "************************" list-of-keys-with-max-values-in-table)
-    ;show list-of-directions-to-number-of-occurrences
+    ;; show (word "************************" list-of-keys-with-max-values-in-table)
+    ;;; show list-of-directions-to-number-of-occurrences
   ]
 
   ;; either empty list, or a list with one winner (currently just randomly chosen)
@@ -261,15 +277,15 @@ to-report get-max-values-in-table [mtable]
   let list-of-values table:values mtable
   let max-number-value-in-list max list-of-values
   let list-of-keys-with-max-values []
-  show (word "max =" max-number-value-in-list)
+  ;; show (word "max =" max-number-value-in-list)
   foreach table:keys mtable [
     [key] ->
     let value table:get mtable key
     if(value = max-number-value-in-list)[
-      show (word "adding value=" value " with key=" key " to list")
-      show (word "list of values before = " list-of-keys-with-max-values)
+      ;; show (word "adding value=" value " with key=" key " to list")
+      ;; show (word "list of values before = " list-of-keys-with-max-values)
       set list-of-keys-with-max-values (lput key list-of-keys-with-max-values)
-      show (word "list of values = " list-of-keys-with-max-values)
+      ;; show (word "list of values = " list-of-keys-with-max-values)
     ]
   ]
   report list-of-keys-with-max-values
@@ -291,7 +307,7 @@ to-report get-discrete-heading [angle]
       set mindiff diff
       set winner i
     ]
-    ;; show (word "i=" i " diff=" diff " a=" a)
+    ;; ;; show (word "i=" i " diff=" diff " a=" a)
     set i (i + 1)
   ]
 
@@ -307,12 +323,6 @@ to-report get-discrete-heading [angle]
   ]
   report winner
 end
-
-
-
-
-
-
 
 ;************** DIRECTION ***************
 to-report set-get-directions-table
@@ -343,7 +353,7 @@ to-report get-directions2 [x1 y1 x2 y2]
   [
     let y y2 - y1
     let x x2 - x1
-    show "x2 and y2 greater"
+    ;; show "x2 and y2 greater"
     let dir get-discrete-heading atan x y
     report dir
   ]
@@ -351,7 +361,7 @@ to-report get-directions2 [x1 y1 x2 y2]
   [
     let y y2 - y1
     let x x1 - x2
-    show "x1 and y2 greater"
+    ;; show "x1 and y2 greater"
     let dir get-discrete-heading atan x y
     report dir
   ]
@@ -359,7 +369,7 @@ to-report get-directions2 [x1 y1 x2 y2]
   [
     let y y1 - y2
     let x x2 - x1
-    show "x2 and y1 greater"
+    ;; show "x2 and y1 greater"
     let dir get-discrete-heading atan x y
     report dir
   ]
@@ -367,7 +377,7 @@ to-report get-directions2 [x1 y1 x2 y2]
   [
     let y y1 - y2
     let x x1 - x2
-    show "x1 and y1 greater"
+    ;; show "x1 and y1 greater"
     let dir get-discrete-heading atan x y
     report dir
   ]
@@ -403,6 +413,55 @@ to go2
   tick
 end
 
+to-report calc_speed [pp]
+
+    let others-speed 0
+    ;;Calculate the speeds here
+
+;  ask person pp [
+;    ;; observe speeds within radius r of x,y
+;    let x xcor
+;    let y ycor
+;    let dir get-discrete-heading (heading)
+;    set others-speed speed
+;    let vision-r vision-radius
+
+    ;find if anyone is withing the collision radius
+ ;   let visible-people (people with [any? other people in-radius vision-r])
+ ; ]
+
+    ;;After calculating, check for any collisions and change te speed
+    ask person pp [
+
+    ;; observe speeds within radius r of x,y
+    let x xcor
+    let y ycor
+    let dir get-discrete-heading (heading)
+    set others-speed speed
+    let collision-r collision-radius
+
+    ;find if anyone is withing the collision radius
+    let visible-people (people with [any? other people in-radius collision-r])
+
+    ;check if the others direction is the same as mine and speed is less than mine.
+    ask visible-people[
+      ;;Fix:need to check only people ahead if me.
+      if(dir = get-discrete-heading (heading)) and ( speed < others-speed)[
+        set others-speed speed
+      ]
+    ]
+    ;I change my speed
+    set speed others-speed
+
+     ; ;; show (word "###################")
+     ; xx -> ;; show(word xx)
+
+
+  ]
+
+  report others-speed
+
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
@@ -455,7 +514,7 @@ BUTTON
 67
 NIL
 go
-NIL
+T
 1
 T
 OBSERVER
@@ -492,7 +551,7 @@ number-of-people
 number-of-people
 0
 100
-25.0
+100.0
 1
 1
 NIL
@@ -517,7 +576,7 @@ number-of-dangers
 number-of-dangers
 1
 20
-1.0
+2.0
 1
 1
 NIL
