@@ -150,7 +150,7 @@ to move-people
       let opp-dir ((dir-to-danger + (num-angles / 2)) mod num-angles)
       ;; show (word "opposite direction=" opp-dir "heading=" heading)
       face-direction opp-dir
-      set speed calc_speed (who) ;; to do... calc speed
+
     ]
     [
       ;; I see no danger, try and imitate the people I see
@@ -163,13 +163,13 @@ to move-people
         let new-dir (item (random max-values-list-length) dir-stats)
         ;let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
         face-direction new-dir
-        set speed calc_speed (who);; to do... calc speed
       ]
       [
         ;; I see no one moving continue unchanged heading and speed
       ]
     ]
 
+    set speed calc_speed (who) ;; to do... calc speed
     forward (speed)
 
     let energy-used 0 ;; to do
