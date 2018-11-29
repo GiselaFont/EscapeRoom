@@ -14,6 +14,7 @@ people-own [
   ;; distance-to-danger
   energy-level
   ;; belief-of-movement
+  collision-radius
 ]
 
 extensions [table]
@@ -22,6 +23,8 @@ globals [
   num-angles
   pop-size
   danger-growth-coeff
+  num-deaths
+  num-survivors
 ]
 
 to normalize-pop
@@ -44,12 +47,17 @@ to setup
   setup-patches
   setup-people
   setup-many-dangers number-of-dangers
+  setup-avoid-overlaps
   reset-ticks
 end
 
 ;;Environment setup
 to setup-patches
   ask patches [ set pcolor white ]
+  ask patch -15 16 [ set pcolor red ]
+  ask patch -14 16 [ set pcolor red ]
+  ask patch 15 -16 [ set pcolor red ]
+  ask patch 14 -16 [ set pcolor red ]
 end
 
 to setup-people
@@ -57,31 +65,37 @@ to setup-people
 
   normalize-pop
 
+  ;Create young population
   create-people number-of-people * frac-young / 100 [
     set age 0
     set speed 0
-    set vision-radius 4
+    set vision-radius 5
     set energy-level 10
+    set collision-radius 0.5
     set color green
   ]
 
+  ;Create average population
   create-people number-of-people * frac-average / 100 [
     set age 1
     set speed 0
-    set vision-radius 4
+    set vision-radius 8
     set energy-level 10
+    set collision-radius 0.5
     set color orange
   ]
 
+  ;Create old population
   create-people number-of-people * frac-old / 100 [
     set age 2
     set speed 0
     set vision-radius 4
     set energy-level 10
+    set collision-radius 0.5
     set color blue
   ]
 
-
+  ;to do add code to not overlap
   ask people [
     setxy random-xcor random-ycor
     set heading (random 360)
@@ -104,10 +118,11 @@ end
 
 
 to go
-  show (word "in go 1")
+  ;show (word "in go 1")
   if ticks >= 1000 [ stop ]
   move-people
   check-death
+  check-escape
   grow-dangers
   tick
 end
@@ -121,40 +136,105 @@ to move-people
     let y ycor
     let vision-r vision-radius
     let visible-dangers (dangers with [in-danger-radius x y vision-r])
+    let visible-exit patches in-radius vision-r with [ pcolor = red ]
     ;let visible-dangers (dangers in-radius vision-radius)
-    ;to do add exit
-    ifelse (count visible-dangers >= 1) [
-      show "I see danger!!"
-      show who
-      ;; I can see one or more danger
-      let chosen-danger (one-of visible-dangers)
-      let x2 [xcor] of chosen-danger
-      let y2 [ycor] of chosen-danger
-      let dir-to-danger (get-directions xcor ycor x2 y2)
-      show (word "direction to danger=" dir-to-danger)
-      let opp-dir ((dir-to-danger + (num-angles / 2)) mod num-angles)
-      show (word "opposite direction=" opp-dir "heading=" heading)
-      face-direction opp-dir
-      set speed 1.0 ;; to do... calc speed
+
+    ifelse (count visible-exit >= 1)[
+       ;I see an exit!
+      if(who = 8)[
+        show "I see an exit!"
+      ]
+      show (word "visible exit = " visible-exit)
+      let exit (one-of visible-exit) ;get one of the patches from the exit since each exit has two patches
+      let x1 [pxcor] of exit
+      let y1 [pycor] of exit
+      ;show (word "x1=" x1 ", y1=" y1)
+      let dir-to-exit (get-directions xcor ycor x1 y1)
+      ;show (word "dir-to-exit =" dir-to-exit)
+      let dir-to-exit-discrete-heading get-discrete-heading dir-to-exit
+      face-direction dir-to-exit-discrete-heading
+      set speed 1.0 ;;to do ... calc speed
+
     ]
     [
-      ;; I see no danger, try and imitate the people I see
+      ifelse (count visible-dangers >= 1) [
+        ;show "I see danger!!"
 
-      let dir-stats (get-movement-stats xcor ycor vision-radius)
-      ifelse (length dir-stats > 0) [
-        ;; I see someone moving nearby
-        let max-values-list-length length dir-stats ;get the length of the list to select a random item from the list
-        show (word "length !!!!! = " max-values-list-length)
-        let new-dir (item (random max-values-list-length) dir-stats)
-        ;let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
-        face-direction new-dir
+        ;show who
+        ;; I can see one or more danger
+        let chosen-danger (one-of visible-dangers)
+        let x2 [xcor] of chosen-danger
+        let y2 [ycor] of chosen-danger
+
+        let dir-to-danger (get-directions xcor ycor x2 y2)
+        ;show (word "direction to danger=" dir-to-danger)
+        let difference -1
+        let opp-dir -1
+        ifelse (dir-to-danger > 180)[
+          set difference (359 - dir-to-danger)
+          set opp-dir (180 - difference)
+          show (word "opp-dir = " opp-dir ", difference = " difference)
+        ]
+        [
+          set opp-dir (dir-to-danger + 180)
+          show (word "opp-dir = " opp-dir)
+        ]
+
+        let opp-discrete-heading get-discrete-heading opp-dir
+        ;show (word "opposite direction=" opp-dir "heading=" heading)
+        let prev-heading heading
+
+
+
+        face-direction opp-discrete-heading
+         if(who = 8)[
+          show (word "dir-to-danger = " dir-to-danger ", opp-direction = " opp-dir ",opp-discrete-heading = " opp-discrete-heading)
+          show (word "previous heading = " prev-heading ", current heading = " heading)
+        ]
         set speed 1.0 ;; to do... calc speed
       ]
       [
-        ;; I see no one moving continue unchanged heading and speed
+        ;; I see no danger, try and imitate the people I see
+         if(who = 8)[
+          show "I see people!"
+        ]
+
+        let dir-stats (get-movement-stats xcor ycor vision-radius)
+        ifelse (length dir-stats > 0) [
+          ;; I see someone moving nearby
+          let max-values-list-length length dir-stats ;get the length of the list to select a random item from the list
+                                                      ;show (word "length !!!!! = " max-values-list-length)
+          let new-dir (item (random max-values-list-length) dir-stats)
+          ;let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
+          face-direction new-dir
+          set speed 1.0 ;; to do... calc speed
+        ]
+        [
+          ;; I see no one moving continue unchanged heading and speed and check for walls
+           if(who = 8)[
+            show "I see nothing!"
+          ]
+
+        ]
       ]
+
     ]
 
+     ; set speed to 0 if person can't move
+    ifelse(can-move? 1 = true)[
+      ;show "1111111111111111111"
+      ;do nothing if the person can move
+    ]
+    [
+      if(who = 8)[
+        show "Can't move!"
+      ]
+      ;show "000000000000000000"
+      ;set speed 0
+      check-walls
+    ]
+
+    ;set speed calc_speed (who) ;; to do... calc speed
     forward (speed)
 
     let energy-used 0 ;; to do
@@ -173,13 +253,13 @@ to grow-dangers
   ]
 end
 
-
 to check-death
 
   ;; death by danger
   ask dangers [
     let will-die (people in-radius radius)
     ask will-die [
+      set num-deaths num-deaths + 1
       die
     ]
   ]
@@ -187,6 +267,79 @@ to check-death
   ;; death by energy-level
   ask people [
     if energy-level <= 0 [
+      set num-deaths num-deaths + 1
+      die
+    ]
+  ]
+end
+
+to check-walls
+  let people-can-not-move (people with [can-move? 1 = false])
+
+  ask people-can-not-move[
+    let prev-heading heading
+    show (word "people can not move who= " who)
+
+    let possible-left-right-walls-directions [0 180]
+    let possible-up-bottom-walls-directions [90 270]
+
+    ;check what wall the person is stuck, and move to a random direction
+    set heading 0
+    ifelse(can-move? 1 = false)[
+      ;person can't move because of wall at the top
+      move-people-in-walls possible-up-bottom-walls-directions
+      show (word "it is at the top wall")
+    ]
+    [
+      set heading 90
+      ifelse(can-move? 1 = false)[
+        ;person can't move because of wall at the right
+        move-people-in-walls possible-left-right-walls-directions
+        show (word "it is at the right wall")
+      ]
+      [
+         set heading 180
+        ifelse(can-move? 1 = false)[
+          ;person can't move because of wall at the bottom
+          move-people-in-walls possible-up-bottom-walls-directions
+          show (word "it is at the bottom wall")
+        ]
+        [
+            set heading 270
+          if(can-move? 1 = false)[
+            ;person can't move because of wall at the left
+            move-people-in-walls possible-left-right-walls-directions
+            show (word "it is at the left wall")
+          ]
+        ]
+      ]
+    ]
+
+    ;set back
+    ;set heading prev-heading
+    show heading
+  ]
+
+end
+
+to move-people-in-walls [possible-directions]
+  show (word "move-people-in-wall who=" who)
+  let random-item-position random 2
+  let new-dir item random-item-position possible-directions
+  let new-dir-discrete-heading get-discrete-heading new-dir
+  ;only choose random direction if the person is not going up or down
+  if(heading != (item 0 possible-directions) and heading != (item 1 possible-directions))[
+    face-direction new-dir-discrete-heading
+  ]
+end
+
+to check-escape
+
+  ; people that are in the exit, they have escaped
+  ask people[
+    let will-escape (people-on patches with [ pcolor = red ])
+    ask will-escape[
+      set num-survivors num-survivors + 1
       die
     ]
   ]
@@ -196,10 +349,9 @@ end
 
 ;Returns the degree that the agent should face
 to face-direction [direction]
-  ;;let actionToDirectionAngle set-get-directions-table
-  ;;report table:get actionToDirectionAngle direction
 
   set heading (direction * 360 / num-angles)
+
 end
 
 to-report in-danger-radius [x y vision-r]
@@ -217,10 +369,13 @@ end
 to-report get-movement-stats [x y r]
 
   ;; get turtles in ball of radius r of x,y
-  let ball (turtles with [in-ball x y r])
+  let ball (people with [in-ball x y r])
+  ;; only keep the people that are moving
+  let moving-people (ball with [ speed > 0 ])
+  ;show (word "moving-people = " moving-people)
 
   let list-of-directions []
-  ask ball [
+  ask moving-people [
     let my-disc-heading (get-discrete-heading heading)                ;; compute my discrete heading
     set list-of-directions (lput my-disc-heading list-of-directions)  ;; append my discrete heading to list
   ]
@@ -229,18 +384,18 @@ to-report get-movement-stats [x y r]
   let list-of-directions-to-number-of-occurrences table:make
   if (length list-of-directions > 0) [
     foreach list-of-directions [
-      [dir] -> show (word "direction=" dir)
+      [dir] -> ;show (word "direction=" dir)
       ifelse ((table:has-key? list-of-directions-to-number-of-occurrences dir) = false)[
         table:put list-of-directions-to-number-of-occurrences dir 0
       ]
       [
         let dir-count table:get list-of-directions-to-number-of-occurrences dir + 1
         table:put list-of-directions-to-number-of-occurrences dir dir-count
-        show (word "Directions count=" dir-count)
+        ;show (word "Directions count=" dir-count)
       ]
     ]
     set list-of-keys-with-max-values-in-table get-max-values-in-table list-of-directions-to-number-of-occurrences
-    show (word "************************" list-of-keys-with-max-values-in-table)
+    ;show (word "************************" list-of-keys-with-max-values-in-table)
     ;show list-of-directions-to-number-of-occurrences
   ]
 
@@ -262,15 +417,15 @@ to-report get-max-values-in-table [mtable]
   let list-of-values table:values mtable
   let max-number-value-in-list max list-of-values
   let list-of-keys-with-max-values []
-  show (word "max =" max-number-value-in-list)
+  ;show (word "max =" max-number-value-in-list)
   foreach table:keys mtable [
     [key] ->
     let value table:get mtable key
     if(value = max-number-value-in-list)[
-      show (word "adding value=" value " with key=" key " to list")
-      show (word "list of values before = " list-of-keys-with-max-values)
+      ;show (word "adding value=" value " with key=" key " to list")
+      ;show (word "list of values before = " list-of-keys-with-max-values)
       set list-of-keys-with-max-values (lput key list-of-keys-with-max-values)
-      show (word "list of values = " list-of-keys-with-max-values)
+      ;show (word "list of values = " list-of-keys-with-max-values)
     ]
   ]
   report list-of-keys-with-max-values
@@ -311,6 +466,68 @@ to-report get-discrete-heading [angle]
 end
 
 
+to-report calc_speed [pp]
+
+    let others-speed 0
+    ;;Calculate the speeds here
+
+;  ask person pp [
+;    ;; observe speeds within radius r of x,y
+;    let x xcor
+;    let y ycor
+;    let dir get-discrete-heading (heading)
+;    set others-speed speed
+;    let vision-r vision-radius
+
+    ;find if anyone is withing the collision radius
+ ;   let visible-people (people with [any? other people in-radius vision-r])
+ ; ]
+
+    ;;After calculating, check for any collisions and change te speed
+    ask person pp [
+
+    ;; observe speeds within radius r of x,y
+    let x xcor
+    let y ycor
+    let dir get-discrete-heading (heading)
+    set others-speed speed
+    let collision-r collision-radius
+
+    ;find if anyone is withing the collision radius
+    let visible-people (people with [any? other people in-radius collision-r])
+
+    ;check if the others direction is the same as mine and speed is less than mine.
+    ask visible-people[
+      ;;Fix:need to check only people ahead if me.
+      if(dir = get-discrete-heading (heading)) and ( speed < others-speed)[
+        set others-speed speed
+      ]
+    ]
+    ;I change my speed
+    set speed others-speed
+
+     ; ;; show (word "###################")
+     ; xx -> ;; show(word xx)
+
+
+  ]
+
+  report others-speed
+
+end
+
+to setup-avoid-overlaps
+  ;;set positions so that the agents don't overlap
+
+  ask turtles [
+  while [any? other turtles in-radius 1]
+    [setxy random-xcor random-ycor ]
+  ]
+  ;; End set position to prevent overlaps
+
+end
+
+
 
 
 
@@ -331,8 +548,8 @@ GRAPHICS-WINDOW
 1
 1
 0
-1
-1
+0
+0
 1
 -16
 16
@@ -394,7 +611,7 @@ true
 false
 "" ""
 PENS
-"turtles" 1.0 0 -16777216 true "" "plot count turtles"
+"turtles" 1.0 0 -16777216 true "" "plot num-deaths"
 
 SLIDER
 27
@@ -405,7 +622,7 @@ number-of-people
 number-of-people
 0
 100
-25.0
+75.0
 1
 1
 NIL
@@ -452,7 +669,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot count turtles"
+"default" 1.0 0 -16777216 true "" "plot num-survivors"
 
 TEXTBOX
 70
@@ -503,7 +720,7 @@ frac-old
 frac-old
 0
 100
-50.0
+72.0
 1
 1
 NIL
@@ -518,7 +735,7 @@ frac-average
 frac-average
 0
 100
-50.0
+9.0
 1
 1
 NIL
@@ -533,7 +750,7 @@ frac-young
 frac-young
 0
 100
-0.0
+19.0
 1
 1
 NIL
