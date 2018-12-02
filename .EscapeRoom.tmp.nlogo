@@ -15,6 +15,10 @@ people-own [
   energy-level
   ;; belief-of-movement
   collision-radius
+  maximum-energy
+  maximum-speed
+  previous-distant-to-danger ; this records $x_{i,D}(t-1)$ and defult is set to 0
+  previous-speed ; stiores $x_s(t-1)$
 ]
 
 extensions [table]
@@ -25,6 +29,7 @@ globals [
   danger-growth-coeff
   num-deaths
   num-survivors
+  K_e
 ]
 
 to normalize-pop
@@ -40,7 +45,8 @@ to setup
 
   set num-angles 8
   set pop-size 100
-  set danger-growth-coeff 0.01
+  set danger-growth-coeff 0.005
+  set K_e 0.01
 
   ;;set vision-radius 10
 
@@ -65,34 +71,43 @@ to setup-people
 
   normalize-pop
 
-  ;Create young population
   create-people number-of-people * frac-young / 100 [
     set age 0
     set speed 0
-    set vision-radius 5
+    set vision-radius 4
     set energy-level 10
-    set collision-radius 0.5
     set color green
+    set collision-radius 0.5
+    set maximum-speed 5
+    set maximum-energy 900
+    set previous-distant-to-danger 4
+    set previous-speed 0
   ]
 
-  ;Create average population
   create-people number-of-people * frac-average / 100 [
     set age 1
     set speed 0
-    set vision-radius 8
+    set vision-radius 4
     set energy-level 10
-    set collision-radius 0.5
     set color orange
+    set collision-radius 0.5
+    set maximum-speed 10
+    set maximum-energy 1000
+    set previous-distant-to-danger 4
+    set previous-speed 0
   ]
 
-  ;Create old population
   create-people number-of-people * frac-old / 100 [
     set age 2
     set speed 0
     set vision-radius 4
     set energy-level 10
-    set collision-radius 0.5
     set color blue
+    set collision-radius 0.5
+    set maximum-speed 5
+    set maximum-energy 700
+    set previous-distant-to-danger 4
+    set previous-speed 0
   ]
 
   ;to do add code to not overlap
@@ -121,12 +136,35 @@ to go
   ;show (word "in go 1")
   if ticks >= 1000 [ stop ]
   move-people
+  change-energy-levels
   check-death
   check-escape
   grow-dangers
   tick
 end
 
+; checks the energy level of the agents each type
+to change-energy-levels
+
+  ask people [
+
+    let current-speed speed
+    let my-prevuous-speed previous-speed
+    let current-energy energy-level
+    let max-energy maximum-energy
+
+    let my-new-energy ( current-energy + 2 * (current-energy / max-energy ) * (my-prevuous-speed - current-speed) )
+
+    set energy-level my-new-energy
+    set energy-level min list max-energy my-new-energy
+
+    ;Min bounds are not checked as it's checked in f
+
+    show energy-level
+    show (word "###################")
+  ]
+
+end
 
 to move-people
   ask people [
@@ -138,13 +176,14 @@ to move-people
     let visible-dangers (dangers with [in-danger-radius x y vision-r])
     let visible-exit patches in-radius vision-r with [ pcolor = red ]
     ;let visible-dangers (dangers in-radius vision-radius)
+    let calculated_speed calc_speed who visible-dangers
 
     ifelse (count visible-exit >= 1)[
        ;I see an exit!
       if(who = 8)[
         show "I see an exit!"
       ]
-      show (word "visible exit = " visible-exit)
+      ;show (word "visible exit = " visible-exit)
       let exit (one-of visible-exit) ;get one of the patches from the exit since each exit has two patches
       let x1 [pxcor] of exit
       let y1 [pycor] of exit
@@ -153,12 +192,12 @@ to move-people
       ;show (word "dir-to-exit =" dir-to-exit)
       let dir-to-exit-discrete-heading get-discrete-heading dir-to-exit
       face-direction dir-to-exit-discrete-heading
-      set speed 1.0 ;;to do ... calc speed
+      set speed calculated_speed;; calc speed
 
     ]
     [
       ifelse (count visible-dangers >= 1) [
-        ;show "I see danger!!"
+        show "I see danger!!"
 
         ;show who
         ;; I can see one or more danger
@@ -173,25 +212,23 @@ to move-people
         ifelse (dir-to-danger > 180)[
           set difference (359 - dir-to-danger)
           set opp-dir (180 - difference)
-          show (word "opp-dir = " opp-dir ", difference = " difference)
+          ;show (word "opp-dir = " opp-dir ", difference = " difference)
         ]
         [
           set opp-dir (dir-to-danger + 180)
-          show (word "opp-dir = " opp-dir)
+          ;show (word "opp-dir = " opp-dir)
         ]
 
         let opp-discrete-heading get-discrete-heading opp-dir
         ;show (word "opposite direction=" opp-dir "heading=" heading)
         let prev-heading heading
 
-
-
         face-direction opp-discrete-heading
          if(who = 8)[
-          show (word "dir-to-danger = " dir-to-danger ", opp-direction = " opp-dir ",opp-discrete-heading = " opp-discrete-heading)
-          show (word "previous heading = " prev-heading ", current heading = " heading)
+          ;show (word "dir-to-danger = " dir-to-danger ", opp-direction = " opp-dir ",opp-discrete-heading = " opp-discrete-heading)
+          ;show (word "previous heading = " prev-heading ", current heading = " heading)
         ]
-        set speed 1.0 ;; to do... calc speed
+        set speed calculated_speed ;; calc speed
       ]
       [
         ;; I see no danger, try and imitate the people I see
@@ -207,7 +244,7 @@ to move-people
           let new-dir (item (random max-values-list-length) dir-stats)
           ;let new-dir (item 0 dir-stats)   ;; we pick the first person and imitate them... to do make this real
           face-direction new-dir
-          set speed 1.0 ;; to do... calc speed
+          set speed calculated_speed ;; calc speed
         ]
         [
           ;; I see no one moving continue unchanged heading and speed and check for walls
@@ -221,20 +258,23 @@ to move-people
     ]
 
      ; set speed to 0 if person can't move
-    ifelse(can-move? 1 = true)[
-      ;show "1111111111111111111"
+    ifelse(can-move? speed = true)[
+
       ;do nothing if the person can move
     ]
     [
       if(who = 8)[
-        show "Can't move!"
+        ;show "Can't move!"
       ]
+
       ;show "000000000000000000"
-      ;set speed 0
+      set speed calculated_speed
       check-walls
+
     ]
 
     ;set speed calc_speed (who) ;; to do... calc speed
+    show (word "moving at speed = " speed)
     forward (speed)
 
     let energy-used 0 ;; to do
@@ -253,7 +293,7 @@ to grow-dangers
   ]
 end
 
-to check-death
+to
 
   ;; death by danger
   ask dangers [
@@ -274,42 +314,42 @@ to check-death
 end
 
 to check-walls
-  let people-can-not-move (people with [can-move? 1 = false])
+  let people-can-not-move (people with [can-move? speed = false])
 
   ask people-can-not-move[
     let prev-heading heading
-    show (word "people can not move who= " who)
+    ;show (word "people can not move who= " who)
 
     let possible-left-right-walls-directions [0 180]
     let possible-up-bottom-walls-directions [90 270]
 
     ;check what wall the person is stuck, and move to a random direction
     set heading 0
-    ifelse(can-move? 1 = false)[
+    ifelse(can-move? speed = false)[
       ;person can't move because of wall at the top
       move-people-in-walls possible-up-bottom-walls-directions
-      show (word "it is at the top wall")
+      ;show (word "it is at the top wall")
     ]
     [
       set heading 90
-      ifelse(can-move? 1 = false)[
+      ifelse(can-move? speed = false)[
         ;person can't move because of wall at the right
         move-people-in-walls possible-left-right-walls-directions
-        show (word "it is at the right wall")
+        ;show (word "it is at the right wall")
       ]
       [
          set heading 180
-        ifelse(can-move? 1 = false)[
+        ifelse(can-move? speed = false)[
           ;person can't move because of wall at the bottom
           move-people-in-walls possible-up-bottom-walls-directions
-          show (word "it is at the bottom wall")
+          ;show (word "it is at the bottom wall")
         ]
         [
             set heading 270
-          if(can-move? 1 = false)[
+          if(can-move? speed = false)[
             ;person can't move because of wall at the left
             move-people-in-walls possible-left-right-walls-directions
-            show (word "it is at the left wall")
+            ;show (word "it is at the left wall")
           ]
         ]
       ]
@@ -323,7 +363,7 @@ to check-walls
 end
 
 to move-people-in-walls [possible-directions]
-  show (word "move-people-in-wall who=" who)
+  ;show (word "move-people-in-wall who=" who)
   let random-item-position random 2
   let new-dir item random-item-position possible-directions
   let new-dir-discrete-heading get-discrete-heading new-dir
@@ -364,6 +404,13 @@ to-report in-ball [x y r]
   let d2 ((xcor - x) * (xcor - x) + (ycor - y) * (ycor - y))
   let ans (d2 < (r * r))
   report ans
+end
+
+;; returns the distance to the boundary of a danger from a person
+to-report get-distance-to-danger [x1 y1 x2 y2 r]
+
+  report max list 0 sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)) - r
+
 end
 
 to-report get-movement-stats [x y r]
@@ -465,26 +512,49 @@ to-report get-discrete-heading [angle]
   report winner
 end
 
-
-to-report calc_speed [pp]
+to-report calc_speed [person-of-interest nearby-dangers]
 
     let others-speed 0
-    ;;Calculate the speeds here
+    ;;start : speed calculation
 
-;  ask person pp [
-;    ;; observe speeds within radius r of x,y
-;    let x xcor
-;    let y ycor
-;    let dir get-discrete-heading (heading)
-;    set others-speed speed
-;    let vision-r vision-radius
+  ask person person-of-interest [
 
-    ;find if anyone is withing the collision radius
- ;   let visible-people (people with [any? other people in-radius vision-r])
- ; ]
+    let x xcor
+    let y ycor
+    let distance-to-nearest-danger 1000
+    let current-speed speed
+    let max-energy maximum-energy
+    let current-energy energy-level
+    let max-speed maximum-speed
 
-    ;;After calculating, check for any collisions and change te speed
-    ask person pp [
+    ;; check if there's a danger near by
+    ask nearby-dangers[
+      let d-x xcor
+      let d-y ycor
+      let d-r radius
+      let distance-to-this-danger get-distance-to-danger x d-x y d-y d-r
+      ;; select the closest danger
+      if(distance-to-nearest-danger > distance-to-this-danger)[
+        set distance-to-nearest-danger distance-to-this-danger
+      ]
+    ]
+
+    ;; If there's a danger , change the speeds
+    if (distance-to-nearest-danger != 1000)[
+      let new-speed (current-speed - K_e * (current-energy / max-energy ) * (distance-to-nearest-danger - previous-distant-to-danger) )
+      ;; Apply bounds on speed.
+      set speed min list max-speed new-speed
+      set speed max list 0 speed
+;      show distance-to-nearest-danger
+;      show previous-distant-to-danger
+;      show speed
+;      show (word "###################")
+      set previous-distant-to-danger distance-to-nearest-danger
+    ]
+   ]
+
+    ;;After calculating, check for any collisions and change the speed
+    ask person person-of-interest [
 
     ;; observe speeds within radius r of x,y
     let x xcor
@@ -506,10 +576,6 @@ to-report calc_speed [pp]
     ;I change my speed
     set speed others-speed
 
-     ; ;; show (word "###################")
-     ; xx -> ;; show(word xx)
-
-
   ]
 
   report others-speed
@@ -526,9 +592,6 @@ to setup-avoid-overlaps
   ;; End set position to prevent overlaps
 
 end
-
-
-
 
 
 
@@ -622,7 +685,7 @@ number-of-people
 number-of-people
 0
 100
-75.0
+73.0
 1
 1
 NIL
@@ -647,7 +710,7 @@ number-of-dangers
 number-of-dangers
 1
 20
-1.0
+3.0
 1
 1
 NIL
